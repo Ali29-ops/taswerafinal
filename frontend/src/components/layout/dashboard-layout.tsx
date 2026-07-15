@@ -12,11 +12,13 @@ import {
   LogOut,
   Settings,
   Target,
+  Trophy,
   UserCircle,
   Users,
   Network,
   Building2,
   Menu,
+  Package,
   X,
 } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -31,7 +33,9 @@ const navItems = [
   { href: "/customers", label: "Customers", icon: UserCircle, roles: ["admin", "manager", "employee"] },
   { href: "/photos", label: "Photos", icon: Camera, roles: ["admin", "manager", "employee"] },
   { href: "/sales", label: "Print Sales", icon: DollarSign, roles: ["admin", "manager", "employee"] },
+  { href: "/packages", label: "Packages", icon: Package, roles: ["admin", "manager", "employee"] },
   { href: "/attendance", label: "Attendance", icon: Clock, roles: ["admin", "manager", "employee"] },
+  { href: "/leaderboard", label: "Leaderboard", icon: Trophy, roles: ["admin", "manager", "employee"] },
   { href: "/branches", label: "Branches", icon: Building2, roles: ["admin"] },
   { href: "/settings", label: "Print Pricing", icon: Settings, roles: ["manager"] },
   { href: "/targets", label: "Employee Targets", icon: Target, roles: ["admin", "manager"] },

@@ -4,7 +4,7 @@ import { useEffect, useMemo } from "react";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 export default function InvoicePage({ params }: { params: Promise<{ token: string }> }) {
   const downloadUrl = useMemo(() => {

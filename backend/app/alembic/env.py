@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import get_settings
 from app.database import Base
-from app.models import AuditLog, AttendanceRecord, Branch, Customer, EmployeeBranch, EmployeeBranchSession, EmployeeMonthlyTarget, ManagerEmployee, Photo, PrintSettings, Sale, User  # noqa: F401
+from app.models import AuditLog, AttendanceRecord, Branch, Customer, EmployeeBranch, EmployeeBranchSession, EmployeeMonthlyTarget, ManagerEmployee, Photo, PrintPackage, PrintSettings, Sale, User  # noqa: F401
 
 config = context.config
 settings = get_settings()

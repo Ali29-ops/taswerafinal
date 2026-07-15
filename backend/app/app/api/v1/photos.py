@@ -16,6 +16,7 @@ from app.models.photo import Photo
 from app.models.user import User
 from app.schemas import MessageResponse, PaginatedResponse, PhotoResponse
 from app.services.audit import log_action
+from app.services.photo_cleanup import cleanup_expired_photos
 from app.services.storage import get_storage
 from app.utils.helpers import get_manager_employee_ids, paginate, pagination_meta
 
@@ -86,12 +87,18 @@ async def upload_photos(
     customer = result.scalar_one_or_none()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
+    if len(files) > settings.max_upload_files_per_request:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Upload up to {settings.max_upload_files_per_request} photos at once. Larger uploads are sent in batches.",
+        )
 
     storage = get_storage()
     uploaded: list[PhotoResponse] = []
     for file in files:
         content = await file.read()
         mime = validate_image(content)
+        # Store the exact uploaded bytes. Do not resize, recompress, or change image quality.
         path = await storage.save(content, file.filename or "photo.jpg", mime)
         photo = Photo(
             customer_id=customer_id,
@@ -115,6 +122,15 @@ async def upload_photos(
             ip_address=request.client.host if request.client else None,
         )
     return uploaded
+
+
+@router.post("/cleanup-expired", response_model=MessageResponse)
+async def cleanup_expired(
+    current_user: User = Depends(require_roles(UserRole.ADMIN)),
+    db: AsyncSession = Depends(get_db),
+):
+    deleted = await cleanup_expired_photos(db)
+    return MessageResponse(message=f"Deleted {deleted} expired photo files. Customer info remains unchanged.")
 
 
 @router.get("/files/{file_path:path}")

@@ -41,7 +41,10 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = "noreply@system.com"
 
-    max_upload_size_mb: int = 20
+    max_upload_size_mb: int = 50
+    max_upload_files_per_request: int = 25
+    photo_retention_days: int = 4
+    photo_cleanup_interval_minutes: int = 360
     allowed_mime_types: List[str] = ["image/jpeg", "image/png", "image/webp"]
 
     @field_validator("cors_origins", mode="before")

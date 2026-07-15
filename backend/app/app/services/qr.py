@@ -10,8 +10,9 @@ from app.config import get_settings
 settings = get_settings()
 
 
-def generate_qr_code_data_url(token: str) -> tuple[str, str]:
-    qr_url = f"{settings.frontend_url}/customer/{token}"
+def generate_qr_code_data_url(token: str, base_url: str | None = None) -> tuple[str, str]:
+    public_url = (base_url or settings.frontend_url).rstrip("/")
+    qr_url = f"{public_url}/customer/{token}"
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(qr_url)
     qr.make(fit=True)

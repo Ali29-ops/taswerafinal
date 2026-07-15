@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api/v1";
 
 export interface User {
   id: number;
@@ -62,11 +62,15 @@ export interface Sale {
   customer_id: number;
   employee_id: number;
   branch_id?: number;
+  package_id?: number;
+  package_name?: string;
   small_photo_count: number;
   large_photo_count: number;
   photo_count: number;
   price_per_photo: number;
   amount: number;
+  payment_status: string;
+  payment_method?: string;
   notes?: string;
   created_at: string;
   customer_name?: string;
@@ -79,6 +83,17 @@ export interface SaleInvoiceQR {
   sale_id: number;
   invoice_url: string;
   qr_image_base64: string;
+}
+
+export interface PrintPackage {
+  id: number;
+  name: string;
+  photo_count: number;
+  price: number;
+  is_active: boolean;
+  created_by_id?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PrintPrice {
@@ -140,6 +155,25 @@ export interface AttendanceRecord {
   check_out_at?: string;
   total_minutes?: number;
   status: string;
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  employee_id?: number;
+  employee_name: string;
+  branch_name?: string;
+  photos_printed: number;
+  target_photos: number;
+  progress_percent: number;
+  total_commission: number;
+}
+
+export interface LeaderboardData {
+  year: number;
+  month: number;
+  is_blurred: boolean;
+  blur_starts_on: string;
+  entries: LeaderboardEntry[];
 }
 
 export interface DashboardData {
@@ -293,7 +327,22 @@ class ApiClient {
     return this.request<Paginated<Photo>>(`/photos${q}`);
   }
 
-  uploadPhotos(customerId: number, files: File[], onProgress?: (p: number) => void) {
+  async uploadPhotos(customerId: number, files: File[], onProgress?: (p: number) => void) {
+    const batchSize = 10;
+    const uploaded: Photo[] = [];
+    for (let start = 0; start < files.length; start += batchSize) {
+      const batch = files.slice(start, start + batchSize);
+      const result = await this.uploadPhotoBatch(customerId, batch, (batchProgress) => {
+        const overall = ((start + (batchProgress / 100) * batch.length) / files.length) * 100;
+        if (onProgress) onProgress(Math.round(overall));
+      });
+      uploaded.push(...result);
+    }
+    if (onProgress) onProgress(100);
+    return uploaded;
+  }
+
+  private uploadPhotoBatch(customerId: number, files: File[], onProgress?: (p: number) => void) {
     const form = new FormData();
     files.forEach((f) => form.append("files", f));
     return new Promise<Photo[]>((resolve, reject) => {
@@ -306,7 +355,10 @@ class ApiClient {
       };
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-        else reject(new Error(JSON.parse(xhr.responseText).detail || "Upload failed"));
+        else {
+          const parsed = JSON.parse(xhr.responseText || "{}");
+          reject(new Error(parsed.detail || "Upload failed"));
+        }
       };
       xhr.onerror = () => reject(new Error("Upload failed"));
       xhr.send(form);
@@ -324,6 +376,23 @@ class ApiClient {
 
   getSaleInvoiceQR(id: number) {
     return this.request<SaleInvoiceQR>(`/sales/${id}/invoice-qr`);
+  }
+
+  getPackages(includeInactive = false) {
+    const q = includeInactive ? "?include_inactive=true" : "";
+    return this.request<PrintPackage[]>(`/packages${q}`);
+  }
+
+  createPackage(data: { name: string; photo_count: number; price: number; is_active?: boolean }) {
+    return this.request<PrintPackage>("/packages", { method: "POST", body: JSON.stringify(data) });
+  }
+
+  updatePackage(id: number, data: Partial<{ name: string; photo_count: number; price: number; is_active: boolean }>) {
+    return this.request<PrintPackage>(`/packages/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+  }
+
+  deletePackage(id: number) {
+    return this.request<{ message: string }>(`/packages/${id}`, { method: "DELETE" });
   }
 
   updateSale(id: number, data: Record<string, unknown>) {
@@ -416,6 +485,14 @@ class ApiClient {
     if (month) params.set("month", String(month));
     const q = params.toString() ? `?${params}` : "";
     return this.request<HierarchyData>(`/hierarchy${q}`);
+  }
+
+  getLeaderboard(year?: number, month?: number) {
+    const params = new URLSearchParams();
+    if (year) params.set("year", String(year));
+    if (month) params.set("month", String(month));
+    const q = params.toString() ? `?${params}` : "";
+    return this.request<LeaderboardData>(`/leaderboard${q}`);
   }
 
   getMyAttendanceToday() {

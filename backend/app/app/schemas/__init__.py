@@ -136,9 +136,12 @@ class PhotoResponse(BaseModel):
 
 class SaleBase(BaseModel):
     customer_id: int
+    package_id: Optional[int] = None
     photo_count: Optional[int] = Field(None, gt=0)
     small_photo_count: int = Field(0, ge=0)
     large_photo_count: int = Field(0, ge=0)
+    payment_status: str = Field("paid", pattern="^(paid|unpaid)$")
+    payment_method: Optional[str] = Field(None, pattern="^(cash|visa|scans)$")
     notes: Optional[str] = None
 
 
@@ -148,9 +151,12 @@ class SaleCreate(SaleBase):
 
 class SaleUpdate(BaseModel):
     customer_id: Optional[int] = None
+    package_id: Optional[int] = None
     photo_count: Optional[int] = Field(None, gt=0)
     small_photo_count: Optional[int] = Field(None, ge=0)
     large_photo_count: Optional[int] = Field(None, ge=0)
+    payment_status: Optional[str] = Field(None, pattern="^(paid|unpaid)$")
+    payment_method: Optional[str] = Field(None, pattern="^(cash|visa|scans)$")
     notes: Optional[str] = None
 
 
@@ -161,11 +167,15 @@ class SaleResponse(BaseModel):
     customer_id: int
     employee_id: int
     branch_id: Optional[int] = None
+    package_id: Optional[int] = None
+    package_name: Optional[str] = None
     small_photo_count: int = 0
     large_photo_count: int = 0
     photo_count: int
     price_per_photo: float
     amount: float
+    payment_status: str = "paid"
+    payment_method: Optional[str] = None
     notes: Optional[str]
     created_at: datetime
     customer_name: Optional[str] = None
@@ -178,6 +188,33 @@ class SaleInvoiceQRResponse(BaseModel):
     sale_id: int
     invoice_url: str
     qr_image_base64: str
+
+
+class PrintPackageCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=150)
+    photo_count: int = Field(gt=0)
+    price: float = Field(gt=0)
+    is_active: bool = True
+
+
+class PrintPackageUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=1, max_length=150)
+    photo_count: Optional[int] = Field(None, gt=0)
+    price: Optional[float] = Field(None, gt=0)
+    is_active: Optional[bool] = None
+
+
+class PrintPackageResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    photo_count: int
+    price: float
+    is_active: bool
+    created_by_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class BranchCreate(BaseModel):
@@ -368,3 +405,22 @@ class AttendanceResponse(BaseModel):
 
 class AttendanceCheckOutRequest(BaseModel):
     partner_employee_id: Optional[int] = None
+
+
+class LeaderboardEntry(BaseModel):
+    rank: int
+    employee_id: Optional[int] = None
+    employee_name: str
+    branch_name: Optional[str] = None
+    photos_printed: float = 0
+    target_photos: int = 0
+    progress_percent: float = 0
+    total_commission: float = 0
+
+
+class LeaderboardResponse(BaseModel):
+    year: int
+    month: int
+    is_blurred: bool
+    blur_starts_on: date
+    entries: List[LeaderboardEntry]

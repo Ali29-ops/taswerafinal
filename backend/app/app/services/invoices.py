@@ -20,16 +20,18 @@ from app.models.sale import Sale
 settings = get_settings()
 
 
-def invoice_url(token: str) -> str:
-    return f"{settings.frontend_url}/invoice/{token}"
+def invoice_url(token: str, base_url: str | None = None) -> str:
+    public_url = (base_url or settings.frontend_url).rstrip("/")
+    return f"{public_url}/invoice/{token}"
 
 
-def invoice_download_url(token: str) -> str:
-    return f"{settings.frontend_url}/api/v1/portal/invoices/{token}/download"
+def invoice_download_url(token: str, base_url: str | None = None) -> str:
+    public_url = (base_url or settings.frontend_url).rstrip("/")
+    return f"{public_url}/api/v1/portal/invoices/{token}/download"
 
 
-def invoice_qr_data_url(token: str) -> tuple[str, str]:
-    url = invoice_url(token)
+def invoice_qr_data_url(token: str, base_url: str | None = None) -> tuple[str, str]:
+    url = invoice_url(token, base_url)
     qr = qrcode.QRCode(version=1, box_size=10, border=4)
     qr.add_data(url)
     qr.make(fit=True)
@@ -99,6 +101,7 @@ def generate_invoice_pdf(sale: Sale) -> bytes:
         ["Customer", customer_name],
         ["Employee", employee_name],
         ["Branch", branch_name],
+        ["Payment", f"{sale.payment_status.title()}{f' - {sale.payment_method.title()}' if sale.payment_method else ''}"],
     ]
     summary_table = Table(summary, colWidths=[1.5 * inch, 4.7 * inch])
     summary_table.setStyle(
@@ -119,8 +122,10 @@ def generate_invoice_pdf(sale: Sale) -> bytes:
         ["Item", "Count", "Unit Price", "Total"],
         ["Small Images", sale.small_photo_count, f"EGP {sale.price_per_photo:.2f}", f"EGP {sale.small_photo_count * sale.price_per_photo:.2f}"],
         ["Large Images", sale.large_photo_count, f"EGP {sale.price_per_photo:.2f}", f"EGP {sale.large_photo_count * sale.price_per_photo:.2f}"],
-        ["Total Photos", sale.photo_count, "", f"EGP {sale.amount:.2f}"],
     ]
+    if sale.package:
+        rows.append([f"Package: {sale.package.name}", sale.package.photo_count, "", f"EGP {sale.package.price:.2f}"])
+    rows.append(["Total Photos", sale.photo_count, "", f"EGP {sale.amount:.2f}"])
     items_table = Table(rows, colWidths=[2.2 * inch, 1.1 * inch, 1.5 * inch, 1.5 * inch])
     items_table.setStyle(
         TableStyle(

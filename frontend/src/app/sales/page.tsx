@@ -7,15 +7,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { api, Branch, Customer, Sale, SaleInvoiceQR } from "@/lib/api";
+import { api, Branch, Customer, PrintPackage, Sale, SaleInvoiceQR } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
 const emptyForm = {
   customer_id: "",
   branch_id: "",
+  package_id: "",
   small_photo_count: "0",
   large_photo_count: "0",
+  payment_status: "paid",
+  payment_method: "cash",
   notes: "",
 };
 
@@ -25,6 +28,7 @@ export default function SalesPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [packages, setPackages] = useState<PrintPackage[]>([]);
   const [printPrice, setPrintPrice] = useState(120);
   const [branchLabel, setBranchLabel] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -35,8 +39,9 @@ export default function SalesPage() {
   const selectedBranchPrice = isAdmin && form.branch_id
     ? branches.find((b) => b.id === Number(form.branch_id))?.price_per_photo ?? printPrice
     : printPrice;
+  const selectedPackage = form.package_id ? packages.find((p) => p.id === Number(form.package_id)) : undefined;
   const totalPhotos = Number(form.small_photo_count || 0) + Number(form.large_photo_count || 0);
-  const totalPreview = totalPhotos * selectedBranchPrice;
+  const totalPreview = selectedPackage ? selectedPackage.price : totalPhotos * selectedBranchPrice;
 
   const load = () => {
     Promise.all([api.getSales(), api.getPrintPrice()])
@@ -51,6 +56,7 @@ export default function SalesPage() {
   useEffect(() => {
     load();
     api.getCustomers().then((r) => setCustomers(r.items));
+    api.getPackages().then(setPackages);
     if (isAdmin) {
       api.getBranches().then(setBranches);
     }
@@ -62,11 +68,18 @@ export default function SalesPage() {
       toast({ title: "Add photos", description: "Enter at least one small or large image.", variant: "destructive" });
       return;
     }
+    if (selectedPackage && totalPhotos !== selectedPackage.photo_count) {
+      toast({ title: "Package count mismatch", description: `${selectedPackage.name} requires exactly ${selectedPackage.photo_count} photos.`, variant: "destructive" });
+      return;
+    }
     try {
       const sale = await api.createSale({
         customer_id: Number(form.customer_id),
+        ...(form.package_id ? { package_id: Number(form.package_id) } : {}),
         small_photo_count: Number(form.small_photo_count),
         large_photo_count: Number(form.large_photo_count),
+        payment_status: form.payment_status,
+        payment_method: form.payment_status === "paid" ? form.payment_method : undefined,
         notes: form.notes || undefined,
         ...(isAdmin && form.branch_id ? { branch_id: Number(form.branch_id) } : {}),
       });
@@ -140,6 +153,21 @@ export default function SalesPage() {
                   </select>
                 </div>
                 <div>
+                  <Label>Package (optional)</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={form.package_id}
+                    onChange={(e) => setForm({ ...form, package_id: e.target.value })}
+                  >
+                    <option value="">No package</option>
+                    {packages.map((pkg) => (
+                      <option key={pkg.id} value={pkg.id}>
+                        {pkg.name} - {pkg.photo_count} photos - {formatCurrency(pkg.price)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <Label>Small Images</Label>
                   <Input
                     type="number"
@@ -162,6 +190,31 @@ export default function SalesPage() {
                   />
                 </div>
                 <div>
+                  <Label>Payment Status</Label>
+                  <select
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={form.payment_status}
+                    onChange={(e) => setForm({ ...form, payment_status: e.target.value })}
+                  >
+                    <option value="paid">Paid</option>
+                    <option value="unpaid">Unpaid</option>
+                  </select>
+                </div>
+                {form.payment_status === "paid" && (
+                  <div>
+                    <Label>Payment Method</Label>
+                    <select
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.payment_method}
+                      onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="visa">Visa</option>
+                      <option value="scans">Scans</option>
+                    </select>
+                  </div>
+                )}
+                <div>
                   <Label>Notes (optional)</Label>
                   <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
                 </div>
@@ -170,7 +223,9 @@ export default function SalesPage() {
                     <p className="text-sm text-muted-foreground">Total amount</p>
                     <p className="text-2xl font-bold">{formatCurrency(totalPreview)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {totalPhotos} photos ({form.small_photo_count || 0} small, {form.large_photo_count || 0} large) x {formatCurrency(selectedBranchPrice)}
+                      {selectedPackage
+                        ? `${selectedPackage.name}: ${totalPhotos}/${selectedPackage.photo_count} photos`
+                        : `${totalPhotos} photos (${form.small_photo_count || 0} small, ${form.large_photo_count || 0} large) x ${formatCurrency(selectedBranchPrice)}`}
                     </p>
                   </div>
                 </div>
@@ -216,11 +271,13 @@ export default function SalesPage() {
                     <th className="p-4 text-left">Branch</th>
                     <th className="p-4 text-left">Customer</th>
                     <th className="p-4 text-left">Employee</th>
+                    <th className="p-4 text-left">Package</th>
                     <th className="p-4 text-left">Small</th>
                     <th className="p-4 text-left">Large</th>
                     <th className="p-4 text-left">Total Photos</th>
                     <th className="p-4 text-left">Price/Photo</th>
                     <th className="p-4 text-left">Total</th>
+                    <th className="p-4 text-left">Payment</th>
                     <th className="p-4 text-left">Date</th>
                     <th className="p-4 text-left">Invoice</th>
                   </tr>
@@ -232,11 +289,15 @@ export default function SalesPage() {
                       <td className="p-4">{s.branch_name || "-"}</td>
                       <td className="p-4">{s.customer_name || s.customer_id}</td>
                       <td className="p-4">{s.employee_name || s.employee_id}</td>
+                      <td className="p-4">{s.package_name || "-"}</td>
                       <td className="p-4">{s.small_photo_count}</td>
                       <td className="p-4">{s.large_photo_count}</td>
                       <td className="p-4 font-medium">{s.photo_count}</td>
                       <td className="p-4">{formatCurrency(s.price_per_photo)}</td>
                       <td className="p-4 font-semibold">{formatCurrency(s.amount)}</td>
+                      <td className="p-4 capitalize">
+                        {s.payment_status}{s.payment_method ? ` - ${s.payment_method}` : ""}
+                      </td>
                       <td className="p-4">{formatDate(s.created_at)}</td>
                       <td className="p-4">
                         <Button variant="outline" size="sm" onClick={() => showInvoiceQR(s.id)}>QR</Button>

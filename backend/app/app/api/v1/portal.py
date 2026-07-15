@@ -1,6 +1,6 @@
 """Public customer portal via QR token."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,12 +13,13 @@ from app.models.sale import Sale
 from app.schemas import CustomerPortalResponse, CustomerResponse, PhotoResponse, SaleResponse
 from app.services.invoices import ensure_invoice_token, generate_invoice_pdf, invoice_url
 from app.services.storage import get_storage
+from app.utils.urls import public_base_url
 
 router = APIRouter(prefix="/portal", tags=["Customer Portal"])
 
 
 @router.get("/{token}", response_model=CustomerPortalResponse)
-async def customer_portal(token: str, db: AsyncSession = Depends(get_db)):
+async def customer_portal(token: str, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Customer)
         .options(selectinload(Customer.photos), selectinload(Customer.sales))
@@ -50,7 +51,7 @@ async def customer_portal(token: str, db: AsyncSession = Depends(get_db)):
                 amount=s.amount,
                 notes=s.notes,
                 created_at=s.created_at,
-                invoice_url=invoice_url(token),
+                invoice_url=invoice_url(token, public_base_url(request)),
             )
         )
     return CustomerPortalResponse(
@@ -99,7 +100,7 @@ async def download_photo(token: str, photo_id: int, db: AsyncSession = Depends(g
 async def download_invoice(token: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(Sale)
-        .options(selectinload(Sale.customer), selectinload(Sale.employee), selectinload(Sale.branch))
+        .options(selectinload(Sale.customer), selectinload(Sale.employee), selectinload(Sale.branch), selectinload(Sale.package))
         .where(Sale.invoice_token == token)
     )
     sale = result.scalar_one_or_none()

@@ -35,8 +35,13 @@ export default function PhotosPage() {
       return;
     }
     const valid = Array.from(files).filter((f) => ["image/jpeg", "image/png", "image/webp"].includes(f.type));
+    const tooLarge = valid.find((f) => f.size > 50 * 1024 * 1024);
     if (!valid.length) {
       toast({ title: "Invalid files", description: "Only JPG, PNG, WEBP allowed", variant: "destructive" });
+      return;
+    }
+    if (tooLarge) {
+      toast({ title: "File too large", description: "Each photo must be 50MB or less", variant: "destructive" });
       return;
     }
     setPreviews(valid.map((f) => URL.createObjectURL(f)));
@@ -92,7 +97,7 @@ export default function PhotosPage() {
             >
               <Upload className="mb-4 h-10 w-10 text-muted-foreground" />
               <p className="mb-2 text-sm text-muted-foreground">Drag and drop images here, or click to browse</p>
-              <p className="mb-4 text-xs text-muted-foreground">JPG, PNG, WEBP — max 20MB per file</p>
+              <p className="mb-4 text-xs text-muted-foreground">JPG, PNG, WEBP - max 50MB per file, original quality kept, bulk uploads are batched</p>
               <input
                 type="file"
                 multiple

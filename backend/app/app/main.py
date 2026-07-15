@@ -1,5 +1,7 @@
 """Photo Printing Management System - FastAPI Application."""
 
+import asyncio
+import contextlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -11,6 +13,7 @@ from slowapi.util import get_remote_address
 
 from app.api.v1 import api_router
 from app.config import get_settings
+from app.services.photo_cleanup import photo_cleanup_loop
 
 settings = get_settings()
 limiter = Limiter(key_func=get_remote_address, default_limits=[f"{settings.rate_limit_per_minute}/minute"])
@@ -18,7 +21,13 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[f"{settings.rate_
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+    cleanup_task = asyncio.create_task(photo_cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await cleanup_task
 
 
 app = FastAPI(

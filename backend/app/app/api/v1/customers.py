@@ -16,6 +16,7 @@ from app.schemas import CustomerCreate, CustomerResponse, CustomerUpdate, Messag
 from app.services.audit import log_action
 from app.services.qr import generate_qr_code_data_url
 from app.utils.helpers import get_manager_employee_ids, paginate, pagination_meta
+from app.utils.urls import public_base_url
 
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -124,6 +125,7 @@ async def update_customer(
 @router.get("/{customer_id}/qr", response_model=QRCodeResponse)
 async def get_customer_qr(
     customer_id: int,
+    request: Request,
     current_user: User = Depends(require_roles(UserRole.ADMIN, UserRole.EMPLOYEE)),
     db: AsyncSession = Depends(get_db),
 ):
@@ -134,7 +136,7 @@ async def get_customer_qr(
     customer = result.scalar_one_or_none()
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
-    qr_url, qr_image = generate_qr_code_data_url(customer.qr_token)
+    qr_url, qr_image = generate_qr_code_data_url(customer.qr_token, public_base_url(request))
     return QRCodeResponse(
         customer_id=customer.id,
         qr_token=customer.qr_token,
@@ -158,7 +160,7 @@ async def regenerate_qr(
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
     customer.qr_token = generate_secure_token(32)
-    qr_url, qr_image = generate_qr_code_data_url(customer.qr_token)
+    qr_url, qr_image = generate_qr_code_data_url(customer.qr_token, public_base_url(request))
     await log_action(
         db,
         user_id=current_user.id,
